@@ -22,17 +22,14 @@ def transfer(src, dst, exc):
 	#src_subdirs = [x[0] for x in os.walk(src)][1:]
 	#dst_subdirs = [x[0] for x in os.walk(dst)][1:]
 	src_subdirs = [os.path.join(src, subdir) for subdir in os.listdir(src)]
-	dst_subdirs = os.listdir(dst)
-
-	print(src_subdirs)
-	print(dst_subdirs)
+	dst_subdirs = [os.path.join(dst, subdir) for subdir in os.listdir(dst)]
 
 	# get list of basenames for convenience later
 	src_subdirs_basenames = [os.path.basename(x) for x in src_subdirs]
 	dst_subdirs_basenames = [os.path.basename(x) for x in dst_subdirs]
 
 	# filter out exluded subdirs in src
-	src_subdirs_basenames = filter(lambda x: x not in exc, src_subdirs_basenames)
+	src_subdirs_basenames = list(filter(lambda x: x not in exc, src_subdirs_basenames))
 
 	log(f"Ignoring these subdirectories in source folder: {exc}")
 
@@ -41,14 +38,21 @@ def transfer(src, dst, exc):
 
 	# check if there are any subdirectories in src that are not in dst
 	for subdir in src_subdirs:
-		if os.path.basename(subdir) in dst_subdirs_basenames:
+		p = os.path.basename(subdir)
+		if p in dst_subdirs_basenames:
 			matched_src_dirs.append(subdir) 
+		elif p in exc:
+			continue
 		else: 
 			unmatched_src_dirs.append(subdir)
 
 	# check if there are any subdirectories in dst that are not in src
 	for subdir in dst_subdirs:
-		matched_dst_dirs.append(subdir) if os.path.basename(subdir) in src_subdirs_basenames else unmatched_dst_dirs.append(subdir)
+		p = os.path.basename(subdir)
+		if p in src_subdirs_basenames:
+			matched_dst_dirs.append(subdir) 
+		else:
+			unmatched_dst_dirs.append(subdir)
 
 	# log any unmatched src subdirs 
 	for subdir in unmatched_src_dirs:
