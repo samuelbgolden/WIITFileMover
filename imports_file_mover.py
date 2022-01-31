@@ -16,70 +16,47 @@ def transfer(src, dst, exc):
 	logfilepath = datetime.now().strftime("%m-%d-%Y_%H-%M-%S.txt")
 	logfilepath = os.path.join(os.path.abspath(logfolder), logfilepath)
 
-	log(f'LOGFILE AT {logfilepath}')
+	log(f'INFO:\tLOGFILE AT {logfilepath}')
 
 	# get all subdirectories in src and dst folders (first one removed bc it is just the toplevel dir)
-	#src_subdirs = [x[0] for x in os.walk(src)][1:]
-	#dst_subdirs = [x[0] for x in os.walk(dst)][1:]
-	src_subdirs = [os.path.join(src, subdir) for subdir in os.listdir(src)]
-	dst_subdirs = [os.path.join(dst, subdir) for subdir in os.listdir(dst)]
+	src_subdirs = list(filter(lambda x: os.path.isdir(x[0]), [(os.path.join(src, subdir), subdir) for subdir in os.listdir(src)]))
 
-	# get list of basenames for convenience later
-	src_subdirs_basenames = [os.path.basename(x) for x in src_subdirs]
-	dst_subdirs_basenames = [os.path.basename(x) for x in dst_subdirs]
+	# filter out excluded folders
+	src_subdirs = list(filter(lambda x: not x[1] in exc, src_subdirs))
 
-	# filter out exluded subdirs in src
-	src_subdirs_basenames = list(filter(lambda x: x not in exc, src_subdirs_basenames))
+	log(f'INFO:\tFound these subdirectories in source: {[x[1] for x in src_subdirs]}')
+	log(f'INFO:\tSubdirectories in exclusion list: {exc}')
 
-	log(f"Ignoring these subdirectories in source folder: {exc}")
+	# counter for how many total files are moved between src and dst
+	moved_file_count = 0
 
-	# initialize match/unmatched lists 
-	matched_src_dirs, unmatched_src_dirs, matched_dst_dirs, unmatched_dst_dirs = [],[],[],[]
+	# iterate through subdirs of src
+	for (subdir_path, subdir_name) in src_subdirs:
+		# create path to where corresponding dst subdir should be
+		dst_subdir = os.path.join(dst, subdir_name)
 
-	# check if there are any subdirectories in src that are not in dst
-	for subdir in src_subdirs:
-		p = os.path.basename(subdir)
-		if p in dst_subdirs_basenames:
-			matched_src_dirs.append(subdir) 
-		elif p in exc:
-			continue
-		else: 
-			unmatched_src_dirs.append(subdir)
+		# check if that directory actually exists
+		if not os.path.isdir(dst_subdir):
+			log(f"WARN:\tNo directory called '{subdir_name}' found in destination dir '{dst}', no files will be moved from that source directory.")
+			continue # next dir if it doesn't
 
-	# check if there are any subdirectories in dst that are not in src
-	for subdir in dst_subdirs:
-		p = os.path.basename(subdir)
-		if p in src_subdirs_basenames:
-			matched_dst_dirs.append(subdir) 
-		else:
-			unmatched_dst_dirs.append(subdir)
-
-	# log any unmatched src subdirs 
-	for subdir in unmatched_src_dirs:
-		log("Subdirectory '{}' in source directory not found in destination directory; no files from that directory will be moved.".format(subdir))
-
-	# log any unmatched dst subdirs 
-	for subdir in unmatched_dst_dirs:
-		log("Subdirectory '{}' in destination directory not found in source directory; no files will be moved to it.".format(subdir))
-
-	# log which directories were matched and will be explored
-	log("Transferring files between the following subdirectories: {}, {}".format(
-		list(map(os.path.basename, matched_src_dirs)), 
-		list(map(os.path.basename, matched_dst_dirs))))
-
-	# iterate through the source subdirectories
-	for (srcdir, dstdir) in zip(matched_src_dirs, matched_dst_dirs):
-		for root, dirs, files in os.walk(srcdir):
+		# walk all subdirs of src subdir (os.walk is recursive)
+		for root, dirs, files in os.walk(subdir_path):
 			for f in files:
-				src_path = os.path.join(root, f)
-				dst_path = os.path.join(dstdir, f)
+				# create paths that include the filename
+				src_file_path = os.path.join(root, f)
+				dst_file_path = os.path.join(dst_subdir, f)
 				try:
-					shutil.move(src_path, dst_path)
-					log("Moved '{}' to '{}'.".format(src_path, dst_path))
+					# try to move it
+					shutil.move(src_file_path, dst_file_path)
 				except Error as err:
-					log("Error occurred while moving '{}' to '{}': {}".format(src_path, dst_path, err))
+					# log and continue if something goes wrong
+					log("ERROR:\t shutil.move() error while moving '{}' to '{}': {}".format(src_file_path, dst_file_path, err))
+					continue 
+				moved_file_count += 1
+				log("INFO:\tMoved '{}' to '{}'.".format(src_file_path, dst_file_path))
 
-	log("Done!")
+	log(f"Done! {moved_file_count} files moved.")
 
 
 if __name__ == "__main__":
